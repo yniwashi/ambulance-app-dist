@@ -2,7 +2,7 @@
 
 This folder has the reference copy of `ambulance_app_config.json`.
 
-The live app config Gist is in yazan414 account:
+The live app config Gist is on yazan414 account:
 
 ```text
 https://gist.github.com/yazan414/2ed2d30193b3dedffcf789981ad14c0e
@@ -12,6 +12,18 @@ The raw URL used by the Android app is:
 
 ```text
 https://gist.githubusercontent.com/yazan414/2ed2d30193b3dedffcf789981ad14c0e/raw/ambulance_app_config.json
+```
+
+The testing app config Gist is:
+
+```text
+https://gist.github.com/yazan414/327274b93c586ce8b18900c38982b3cd
+```
+
+The testing raw URL is:
+
+```text
+https://gist.githubusercontent.com/yazan414/327274b93c586ce8b18900c38982b3cd/raw/ambulance_app_config_testing.json
 ```
 
 ## What The App Checks
@@ -46,6 +58,79 @@ If GitHub is unreachable, the app uses:
 2. bundled fallback config inside the APK
 
 The app does not replace the saved config unless the remote JSON downloads and parses successfully.
+
+## Testing Gist
+
+Use the testing Gist when you want to test the update alert without changing the production app config.
+
+In `AppConfigRepository.kt`, switch `APP_CONFIG_URL`:
+
+```kotlin
+// Production app config Gist. Keep this active for normal releases.
+private const val APP_CONFIG_URL =
+    "https://gist.githubusercontent.com/yazan414/2ed2d30193b3dedffcf789981ad14c0e/raw/ambulance_app_config.json"
+
+// Testing app config Gist for checking the update alert before changing production.
+// private const val APP_CONFIG_URL =
+//     "https://gist.githubusercontent.com/yazan414/327274b93c586ce8b18900c38982b3cd/raw/ambulance_app_config_testing.json"
+```
+
+To test:
+
+1. Comment the production `APP_CONFIG_URL`.
+2. Uncomment the testing `APP_CONFIG_URL`.
+3. Make the testing Gist `app_update.latest_version` higher than local `versionName`.
+4. Install/run the app.
+
+If the testing URL returns `404`, check that the file name inside the Gist is exactly:
+
+```text
+ambulance_app_config_testing.json
+```
+
+If the Gist has only one file, a filename-less raw URL can also work:
+
+```text
+https://gist.githubusercontent.com/yazan414/327274b93c586ce8b18900c38982b3cd/raw
+```
+
+## Bundled Fallback
+
+The app also ships with a local fallback config inside the APK:
+
+```text
+app/src/main/assets/ambulance_app_config.json
+```
+
+This file is copied into the APK at build time. It is not downloaded from GitHub.
+
+Fallback order:
+
+1. Use memory config if already loaded and still inside the check interval.
+2. Use saved cached config from the last successful remote fetch.
+3. Try fetching the remote Gist if the check interval has passed.
+4. If remote fetch fails, keep using saved cached config.
+5. If there is no saved cache, use bundled fallback from APK assets.
+
+Important:
+
+- Clearing app data removes the saved cached config.
+- Uninstalling removes the saved cached config.
+- Reinstalling brings back the bundled fallback because it is part of the APK.
+- If the remote Gist URL is wrong and there is no saved cache, the app uses the bundled fallback.
+
+The current bundled fallback has:
+
+```json
+"app_update": {
+  "latest_version": 2.0,
+  "min_supported_version": 2.0
+}
+```
+
+So if your local app `versionName` is also `2.0`, no update alert appears when the app falls back to the bundled config.
+
+When preparing a real release, keep the bundled fallback reasonable but do not rely on it for live updates. The Gist should be the live source of truth.
 
 ## App Update Section
 
