@@ -2,7 +2,7 @@
 
 This folder has the reference copy of `ambulance_app_config.json`.
 
-The live app config Gist is:
+The live app config Gist is in yazan414 account:
 
 ```text
 https://gist.github.com/yazan414/2ed2d30193b3dedffcf789981ad14c0e
