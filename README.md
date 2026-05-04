@@ -38,6 +38,7 @@ That one file controls:
 
 - app update messages
 - app download URL
+- in-app Notice announcements
 - how often the app checks the config
 - CPG/SOP/CPM/PAT PDF and index versions
 - RSI checklist HTML version and image visibility
@@ -154,6 +155,154 @@ Fields:
 - `download_url`: where the Download button opens.
 - `force_update`: if `true`, the app hides main buttons until the user updates.
 
+## Notice Announcement Section
+
+The app can show a centered in-app Notice message without sending a push notification.
+This is useful for non-urgent messages that should appear when the user opens the app.
+
+Add this top-level object beside `app_update` and `documents`:
+
+```json
+"announcement": {
+  "enabled": true,
+  "id": "2026-05-05-001",
+  "title": "Notice",
+  "message": "CPG, SOP, CPM, and PAT documents have been updated.",
+  "button_text": "Got it!"
+}
+```
+
+Fields:
+
+- `enabled`: set to `true` to activate the Notice, or `false` to hide it.
+- `id`: unique ID for this message. It can be any text, not only numbers.
+- `title`: title shown at the top of the Notice dialog.
+- `message`: the main message shown to the user.
+- `button_text`: text on the dismiss button.
+
+Simple disabled example:
+
+```json
+"announcement": {
+  "enabled": false,
+  "id": "",
+  "title": "Notice",
+  "message": "",
+  "button_text": "OK"
+}
+```
+
+### How Notice Appears In The App
+
+The app startup dialog order is:
+
+1. Terms & Conditions.
+2. Notification permission alert.
+3. Notice announcement.
+
+The Notice will not appear before Terms are accepted.
+The Notice will not appear before the notification alert is dismissed or completed.
+
+If the user taps the Notice button, the app saves the current `announcement.id` locally as dismissed.
+The same Notice will not auto-open again for that user.
+
+The user can still view the same message manually by tapping the `Notice` button in the MainActivity status strip.
+
+### When To Change The Notice ID
+
+Change `id` every time you want the Notice to pop up again automatically.
+
+Good IDs:
+
+```json
+"id": "cpg-update-may-2026"
+```
+
+```json
+"id": "rsi-checklist-update"
+```
+
+```json
+"id": "2026-05-05-guidelines"
+```
+
+```json
+"id": "1"
+```
+
+The ID does not need to be incremented.
+It only needs to be different from the previous announcement ID.
+
+Important:
+
+- New announcement that should pop up again = use a new `id`.
+- Same announcement with small wording fix = keep the same `id`.
+- Reusing an old dismissed `id` means users who dismissed it before will not see it automatically.
+
+### New Lines In Notice Messages
+
+Use `\n` for line breaks:
+
+```json
+"message": "CPG has been updated.\nPlease check the Guidelines section.\nThank you."
+```
+
+Do not press Enter inside the JSON string.
+Using `\n` is safer and keeps the JSON valid.
+
+### Notice Button In MainActivity
+
+When `announcement.enabled` is `true` and both `id` and `message` are not empty:
+
+- The `Notice` button appears in the MainActivity status strip.
+- The `Notice` and `Updates` buttons share the full strip width.
+- If Notice is disabled or missing, the `Notice` button hides.
+- When Notice is hidden, the `Updates` button expands to full width.
+
+### Testing Notice
+
+To test the Notice:
+
+1. Update the testing Gist or production Gist with:
+
+```json
+"announcement": {
+  "enabled": true,
+  "id": "test-notice-1",
+  "title": "Notice",
+  "message": "This is a test Notice.",
+  "button_text": "Got it!"
+}
+```
+
+2. Make sure `AppConfigRepository.kt` is pointing to the Gist you want to test.
+3. Clear app data or change the Notice `id`.
+4. Open the app.
+5. Accept Terms if shown.
+6. Dismiss or complete the notification alert.
+7. The Notice should appear.
+
+If the Notice does not appear:
+
+- Check `enabled` is `true`.
+- Check `id` is not empty.
+- Check `message` is not empty.
+- Check the app is fetching the Gist you edited, testing or production.
+- Change the `id` to a new value if the old one was already dismissed.
+- Remember the app checks the config based on `config_check_interval_hours`.
+
+### Notice And Backup
+
+Dismissed Notice IDs are stored locally in this SharedPreferences file:
+
+```text
+announcement_pref
+```
+
+Terms acceptance is excluded from Android backup, but Notice dismissal is not currently excluded.
+That means if Android restores app data, a dismissed Notice may stay dismissed after restore.
+If you want all users to see the Notice again, change the Notice `id`.
+
 ## Releasing A New App Version
 
 Example: releasing version `2.2`.
@@ -236,7 +385,9 @@ The Android app processes the RSI HTML and replaces the image/audio placeholders
 - Do not rename `schema_version`.
 - Do not rename `config_check_interval_hours`.
 - Do not rename `app_update`.
+- Do not rename `announcement`.
 - Do not rename `documents`.
 - You can add new fields later. The app ignores fields it does not know.
 - Increase a version when you want the app to refresh that item.
 - Keep version numbers simple, for example `2.1`, `2.2`, `"4.1"`.
+- For Notice messages, change `announcement.id` when you want the popup to show again.
