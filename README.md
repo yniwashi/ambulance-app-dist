@@ -509,6 +509,71 @@ To update RSI:
 
 The Android app processes the RSI HTML and replaces the image/audio placeholders with local app files.
 
+## CCP Pediatric Dosing Helper
+
+CCP Pediatric medication dosing is driven by a separate helper JSON:
+
+```json
+"pediatric_dosing": {
+  "enabled": true,
+  "helpers": [
+    {
+      "id": "ccp_pediatric_dosing",
+      "scope": "CCP",
+      "age_groups": ["months", "years"],
+      "schema_version": "0.1",
+      "version": "0.1",
+      "url": "https://docs.niwashibase.com/helpers/ccp_pediatric_dosing_helper.json",
+      "fallback_asset": "ccp_pediatric_dosing_helper.json",
+      "enabled": true
+    }
+  ]
+}
+```
+
+Current helper file:
+
+```text
+https://docs.niwashibase.com/helpers/ccp_pediatric_dosing_helper.json
+```
+
+Local working copy:
+
+```text
+TEMP/ccp_pediatric_dosing_helper.json
+```
+
+Bundled Android fallback:
+
+```text
+app/src/main/assets/ccp_pediatric_dosing_helper.json
+```
+
+To update CCP pediatric dosing:
+
+1. Edit and validate `TEMP/ccp_pediatric_dosing_helper.json`.
+2. Upload the helper JSON to the docs URL.
+3. Copy the same validated helper into `app/src/main/assets/ccp_pediatric_dosing_helper.json` before building a release, so the app has a safe offline fallback.
+4. Increase the helper top-level `"version"` when dose content changes.
+5. Increase top-level `"schema_version"` only when the contract/structure changes in a way the app must explicitly support.
+6. Update the matching `schema_version` and `version` inside `ambulance_app_config.json`.
+7. Save/upload app config.
+
+The Android app validates that:
+
+- `helper_type` is `ccp_pediatric_dosing`.
+- helper `schema_version` equals the app-config helper `schema_version`.
+- helper `version` equals the app-config helper `version`.
+- the helper contains at least one medication.
+
+If validation or download fails, the app uses cached helper data if available, otherwise it uses the bundled asset fallback.
+
+For full CCP helper editing rules, use:
+
+```text
+TEMP/README_CCP_PEDS.md
+```
+
 ## Safe Rules
 
 - Do not rename `schema_version`.
@@ -517,8 +582,10 @@ The Android app processes the RSI HTML and replaces the image/audio placeholders
 - Do not rename `announcement`.
 - Do not rename `notices`.
 - Do not rename `documents`.
+- Do not rename `pediatric_dosing`.
 - You can add new fields later. The app ignores fields it does not know.
 - Increase a version when you want the app to refresh that item.
 - Keep version numbers simple, for example `2.1`, `2.2`, `"4.1"`.
 - For Notice messages, change `announcement.id` when you want the popup to show again.
 - For bell inbox Notices, every item in `notices` needs a stable unique `id`.
+- For CCP Pediatric dosing, helper `schema_version` and `version` must match the values in app config.
