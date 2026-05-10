@@ -39,6 +39,7 @@ That one file controls:
 - app update messages
 - app download URL
 - in-app Notice announcements
+- Notice bell history
 - how often the app checks the config
 - CPG/SOP/CPM/PAT PDF and index versions
 - RSI checklist HTML version and image visibility
@@ -160,6 +161,9 @@ Fields:
 The app can show a centered in-app Notice message without sending a push notification.
 This is useful for non-urgent messages that should appear when the user opens the app.
 
+The app also has a bell icon in the MainActivity title area. The bell opens the Notice inbox/history.
+The bell inbox is driven by the app config, not by Firebase Console notification history.
+
 Add this top-level object beside `app_update` and `documents`:
 
 ```json
@@ -191,6 +195,74 @@ Simple disabled example:
   "button_text": "OK"
 }
 ```
+
+## Notice History / Bell Inbox
+
+Use the top-level `notices` array when you want the bell page to show a scrollable history of Notices.
+
+Add it beside `announcement`, `app_update`, and `documents`:
+
+```json
+"notices": [
+  {
+    "enabled": true,
+    "id": "notice_2026_05_10",
+    "title": "New CPG update",
+    "message": "CPG has been updated. Open Guidelines to view the latest version.",
+    "button_text": "OK",
+    "date": "May 10, 2026"
+  },
+  {
+    "enabled": true,
+    "id": "notice_2026_05_08",
+    "title": "CPR update",
+    "message": "CPR Timer received UI and export improvements.",
+    "button_text": "OK",
+    "date": "May 08, 2026"
+  }
+]
+```
+
+Fields:
+
+- `enabled`: set to `true` to show this Notice in the bell inbox.
+- `id`: unique ID for this Notice. The app uses this to track read/unread state.
+- `title`: title shown in the Notice card.
+- `message`: main Notice text.
+- `button_text`: kept for compatibility with the popup Notice. The inbox currently uses Mark read.
+- `date`: optional display date shown under the title.
+
+If `notices` is missing or empty, the app still falls back to the single `announcement` object when it is enabled.
+
+Recommended setup:
+
+- Keep the newest important Notice in `announcement` if you want it to auto-popup.
+- Add the same Notice to `notices` so it remains visible in the bell history.
+- Keep older Notices in `notices` as long as you want users to be able to review them.
+
+Example using both:
+
+```json
+"announcement": {
+  "enabled": true,
+  "id": "notice_2026_05_10",
+  "title": "New CPG update",
+  "message": "CPG has been updated. Open Guidelines to view the latest version.",
+  "button_text": "Got it"
+},
+"notices": [
+  {
+    "enabled": true,
+    "id": "notice_2026_05_10",
+    "title": "New CPG update",
+    "message": "CPG has been updated. Open Guidelines to view the latest version.",
+    "button_text": "Got it",
+    "date": "May 10, 2026"
+  }
+]
+```
+
+The app removes duplicates by `id`, so the same Notice will not show twice.
 
 ### How Notice Appears In The App
 
@@ -259,6 +331,18 @@ When `announcement.enabled` is `true` and both `id` and `message` are not empty:
 - If Notice is disabled or missing, the `Notice` button hides.
 - When Notice is hidden, the `Updates` button expands to full width.
 
+### Bell Badge In MainActivity
+
+The bell badge counts unread items from the Notice inbox.
+
+- The badge uses `notices` from `ambulance_app_config.json`.
+- If `notices` is empty, it can use the active single `announcement`.
+- Tapping the bell opens the Notice inbox.
+- Users can mark one Notice read or mark all Notices read.
+- Read state is stored locally on the device.
+
+The bell badge is not based on Firebase Console notification history.
+
 ### Testing Notice
 
 To test the Notice:
@@ -282,6 +366,16 @@ To test the Notice:
 6. Dismiss or complete the notification alert.
 7. The Notice should appear.
 
+To test the bell inbox:
+
+1. Add a `notices` array to the testing or production Gist.
+2. Give each Notice a unique `id`.
+3. Make sure each Notice has `enabled: true`.
+4. Open the app after the config check interval passes, or clear app data for a fresh test.
+5. Tap the bell icon beside the Ambulance title.
+6. Confirm the Notices appear.
+7. Tap Mark read or Mark all read and confirm the bell badge clears.
+
 If the Notice does not appear:
 
 - Check `enabled` is `true`.
@@ -299,9 +393,40 @@ Dismissed Notice IDs are stored locally in this SharedPreferences file:
 announcement_pref
 ```
 
+Bell inbox read IDs are stored locally in:
+
+```text
+notice_inbox_pref
+```
+
 Terms acceptance is excluded from Android backup, but Notice dismissal is not currently excluded.
 That means if Android restores app data, a dismissed Notice may stay dismissed after restore.
 If you want all users to see the Notice again, change the Notice `id`.
+
+## Firebase Console Push Notifications
+
+Firebase Console notifications are still useful as reminders, but they are not the reliable source for the bell inbox.
+
+Recommended Firebase Console message:
+
+```text
+New Ambulance notice available. Open the app and tap the bell.
+```
+
+Why:
+
+- Firebase Console sends notification messages.
+- When the device is locked, backgrounded, or the app is killed, Android/Firebase may display the notification directly.
+- In that situation, the app may not receive the notification content.
+- If the app does not receive it, it cannot add it to the in-app inbox.
+
+So the reliable workflow is:
+
+1. Add the Notice details to `notices` in `ambulance_app_config.json`.
+2. Optionally set the newest important item as `announcement` if you want it to auto-popup.
+3. Send a Firebase Console push only to tell users to open the app/check the bell.
+
+Opening MainActivity clears visible non-CPR app notifications when possible, but the Notice inbox history comes from app config.
 
 ## Releasing A New App Version
 
@@ -386,8 +511,10 @@ The Android app processes the RSI HTML and replaces the image/audio placeholders
 - Do not rename `config_check_interval_hours`.
 - Do not rename `app_update`.
 - Do not rename `announcement`.
+- Do not rename `notices`.
 - Do not rename `documents`.
 - You can add new fields later. The app ignores fields it does not know.
 - Increase a version when you want the app to refresh that item.
 - Keep version numbers simple, for example `2.1`, `2.2`, `"4.1"`.
 - For Notice messages, change `announcement.id` when you want the popup to show again.
+- For bell inbox Notices, every item in `notices` needs a stable unique `id`.
