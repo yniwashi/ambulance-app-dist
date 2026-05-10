@@ -172,7 +172,8 @@ Add this top-level object beside `app_update` and `documents`:
   "id": "2026-05-05-001",
   "title": "Notice",
   "message": "CPG, SOP, CPM, and PAT documents have been updated.",
-  "button_text": "Got it!"
+  "button_text": "Got it!",
+  "date": "May 10, 2026"
 }
 ```
 
@@ -183,6 +184,7 @@ Fields:
 - `title`: title shown at the top of the Notice dialog.
 - `message`: the main message shown to the user.
 - `button_text`: text on the dismiss button.
+- `date`: publish date shown in the bell inbox.
 
 Simple disabled example:
 
@@ -192,7 +194,8 @@ Simple disabled example:
   "id": "",
   "title": "Notice",
   "message": "",
-  "button_text": "OK"
+  "button_text": "OK",
+  "date": ""
 }
 ```
 
@@ -230,7 +233,7 @@ Fields:
 - `title`: title shown in the Notice card.
 - `message`: main Notice text.
 - `button_text`: kept for compatibility with the popup Notice. The inbox currently uses Mark read.
-- `date`: optional display date shown under the title.
+- `date`: publish date shown under the title. Use this on every Notice.
 
 If `notices` is missing or empty, the app still falls back to the single `announcement` object when it is enabled.
 
@@ -248,7 +251,8 @@ Example using both:
   "id": "notice_2026_05_10",
   "title": "New CPG update",
   "message": "CPG has been updated. Open Guidelines to view the latest version.",
-  "button_text": "Got it"
+  "button_text": "Got it",
+  "date": "May 10, 2026"
 },
 "notices": [
   {
