@@ -479,6 +479,44 @@ Remote update rule:
 - Keep bundled fallback `assets/websites.json` updated before release builds.
 - Website icons can be remote through `icon_url`; Android should cache icons and fall back gracefully if an icon fails.
 
+## AS-Call Helper
+
+AS-Call is configured under:
+
+```json
+"as_call": {
+  "enabled": true,
+  "schema_version": "0.1",
+  "version": "0.1",
+  "url": "https://docs.niwashibase.com/helpers/as_call.json",
+  "fallback_asset": "as_call.json"
+}
+```
+
+The helper file lives at:
+
+```text
+https://docs.niwashibase.com/helpers/as_call.json
+```
+
+Android supports the current simple helper:
+
+```json
+{
+  "addressbook": {
+    "Scheduling": 40328200
+  }
+}
+```
+
+Android also supports a future typed helper with a `contacts` array and per-contact `enabled` flags.
+
+Remote update rule:
+
+- Change `as_call.version` for contact additions/removals, name changes, number changes, enabled/disabled changes, or order changes.
+- Keep bundled fallback `assets/as_call.json` updated before release builds.
+- Store future `contacts[].number` values as strings.
+
 ## Safe Rules
 
 - Do not rename `schema_version`.
@@ -489,6 +527,7 @@ Remote update rule:
 - Do not rename `documents`.
 - Do not rename `pediatric_dosing`.
 - Do not rename `websites` after Android starts using it.
+- Do not rename `as_call` after Android starts using it.
 - You can add new fields later. The app should ignore unknown fields.
 - Increase a version when you want Android to refresh that item.
 - Keep version values simple, for example `2.1`, `2.2`, `"4.1"`.
@@ -496,6 +535,7 @@ Remote update rule:
 - For bell inbox Notices, each Notice needs a stable unique `id`.
 - For CCP/AP pediatric dosing, helper `schema_version` and `version` must match app config.
 - For Websites, helper `schema_version` and `version` must match app config.
+- For AS-Call, app-config `schema_version` and `version` control Android cache refresh. The current simple helper may omit top-level metadata.
 
 ## Quick Update Checklist
 
