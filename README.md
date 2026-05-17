@@ -54,6 +54,7 @@ It controls:
 - CPG/SOP/CPM/PAT PDF and index URLs/versions
 - RSI checklist HTML URL/version/image visibility
 - CCP/AP pediatric dosing helper URLs/versions
+- Websites helper URL/version
 
 Version `2.0` users still use older update logic already compiled into that APK.
 
@@ -431,6 +432,53 @@ Full helper editing guide:
 https://github.com/yniwashi/pdf-viewer/blob/main/helpers/README.md
 ```
 
+## Websites Helper
+
+Websites are configured under:
+
+```json
+"websites": {
+  "enabled": true,
+  "schema_version": "0.1",
+  "version": "0.1",
+  "url": "https://docs.niwashibase.com/helpers/websites.json",
+  "fallback_asset": "websites.json"
+}
+```
+
+The helper file lives at:
+
+```text
+https://docs.niwashibase.com/helpers/websites.json
+```
+
+The helper should include matching top-level metadata:
+
+```json
+{
+  "helper_type": "websites",
+  "schema_version": "0.1",
+  "version": "0.1",
+  "websites": []
+}
+```
+
+Android should validate:
+
+- `helper_type` is `websites`
+- helper `schema_version` matches app config
+- helper `version` matches app config
+- `websites` contains at least one enabled usable item
+- each usable item has a non-blank `title` and `url`
+
+Remote update rule:
+
+- Change `websites.version` for website additions/removals, title/category/subtitle changes, URL changes, enabled/disabled changes, order changes, and icon URL changes.
+- Keep helper top-level `version` synchronized with app-config `websites.version`.
+- Change `schema_version` only when the websites JSON contract changes and Android supports that change.
+- Keep bundled fallback `assets/websites.json` updated before release builds.
+- Website icons can be remote through `icon_url`; Android should cache icons and fall back gracefully if an icon fails.
+
 ## Safe Rules
 
 - Do not rename `schema_version`.
@@ -440,12 +488,14 @@ https://github.com/yniwashi/pdf-viewer/blob/main/helpers/README.md
 - Do not rename `notices`.
 - Do not rename `documents`.
 - Do not rename `pediatric_dosing`.
+- Do not rename `websites` after Android starts using it.
 - You can add new fields later. The app should ignore unknown fields.
 - Increase a version when you want Android to refresh that item.
 - Keep version values simple, for example `2.1`, `2.2`, `"4.1"`.
 - For Notice popup replay, change `announcement.id`.
 - For bell inbox Notices, each Notice needs a stable unique `id`.
 - For CCP/AP pediatric dosing, helper `schema_version` and `version` must match app config.
+- For Websites, helper `schema_version` and `version` must match app config.
 
 ## Quick Update Checklist
 
