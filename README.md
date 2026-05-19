@@ -96,7 +96,8 @@ If GitHub/Gist is unreachable, Android uses:
 
 1. in-memory config if already loaded
 2. saved cached config from the last successful fetch
-3. bundled fallback config inside the APK
+3. backup app-config Gist if the primary app-config URL fails
+4. bundled fallback config inside the APK
 
 The app does not replace saved config unless the remote JSON downloads and parses successfully.
 
@@ -124,6 +125,17 @@ If the testing URL returns `404`, confirm the Gist file name is exactly:
 ambulance_app_config_testing.json
 ```
 
+Backup:
+
+```kotlin
+private const val BACKUP_APP_CONFIG_URL =
+    "https://gist.githubusercontent.com/yniwashi/53edb6646d3d3a53d6ddebbef3afee44/raw/ambulance_app_config_backup.json"
+```
+
+The backup Gist is used only when the active primary `APP_CONFIG_URL` cannot be downloaded or parsed.
+Keep it as a copy of the production app config unless deliberately testing fallback behavior.
+App Status reports the active source as `main`, `backup`, `cache`, or `bundled`; it does not expose the Gist URLs.
+
 ## Bundled Fallback
 
 Android also ships a fallback config inside the APK:
@@ -136,9 +148,10 @@ Fallback order:
 
 1. Use memory config if already loaded and still inside the check interval.
 2. Use saved cached config from the last successful remote fetch.
-3. Try fetching the remote Gist if the check interval has passed.
-4. If remote fetch fails, keep using saved cached config.
-5. If there is no saved cache, use bundled fallback from APK assets.
+3. Try fetching the primary remote Gist if the check interval has passed.
+4. If the primary remote fetch fails or the JSON cannot be parsed, try the backup app-config Gist.
+5. If both remote sources fail, keep using saved cached config.
+6. If there is no saved cache, use bundled fallback from APK assets.
 
 Important:
 
