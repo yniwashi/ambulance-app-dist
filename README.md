@@ -55,6 +55,8 @@ It controls:
 - RSI checklist HTML URL/version/image visibility
 - CCP/AP pediatric dosing helper URLs/versions
 - Websites helper URL/version
+- AS-Call helper URL/version
+- HOS Sites helper URL/version
 
 Version `2.0` users still use older update logic already compiled into that APK.
 
@@ -529,6 +531,33 @@ Remote update rule:
 - Change `as_call.version` for contact additions/removals, name changes, number changes, enabled/disabled changes, or order changes.
 - Keep bundled fallback `assets/as_call.json` updated before release builds.
 - Store future `contacts[].number` values as strings.
+
+## HOS Sites Helper
+
+HOS sites are configured under this app-config key:
+
+```json
+"hos_sites": {
+  "enabled": true,
+  "schema_version": "0.1",
+  "version": "0.1",
+  "url": "https://docs.niwashibase.com/helpers/hos_sites.json",
+  "fallback_asset": "hos_sites.json"
+}
+```
+
+The helper file should live at:
+
+```text
+https://docs.niwashibase.com/helpers/hos_sites.json
+```
+
+Remote update rule:
+
+- Change `hos_sites.version` for site additions/removals, name/detail changes, enabled/disabled changes, status changes, order changes, or encoded location changes.
+- Keep helper top-level `version` synchronized with app-config `hos_sites.version`.
+- Keep bundled fallback `assets/hos_sites.json` updated before release builds.
+- `location_ref` is light obfuscation, not encryption. It prevents casual readers from seeing plain coordinates but does not protect coordinates from app users or reverse engineers.
 
 ## Safe Rules
 
