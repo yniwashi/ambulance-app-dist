@@ -1,5 +1,6 @@
 # Ambulance App Config Guide
 
+
 This guide explains the Android app config, app update workflow, Notices, and how document/helper versions trigger remote refreshes.
 
 The static files referenced by app config live in:
@@ -7,33 +8,107 @@ The static files referenced by app config live in:
 ```text
 https://github.com/yniwashi/pdf-viewer
 https://docs.niwashibase.com
+https://api.niwashibase.com
 ```
 
 ## Live App Config
 
-The live app config Gist is on the `yazan414` account:
+Current app config is served by the NiwashiBase API backed by Cloudflare R2:
 
 ```text
-https://gist.github.com/yazan414/2ed2d30193b3dedffcf789981ad14c0e
+Production: https://api.niwashibase.com/api/v1/ambulance/app-config/production
+Testing:    https://api.niwashibase.com/api/v1/ambulance/app-config/testing
+Backup:     https://api.niwashibase.com/api/v1/ambulance/app-config/backup
 ```
 
-Raw URL used by Android production builds:
+Cloudflare R2 bucket:
 
 ```text
-https://gist.githubusercontent.com/yazan414/2ed2d30193b3dedffcf789981ad14c0e/raw/ambulance_app_config.json
+ambulance-app-configs
 ```
 
-Testing Gist:
+R2 object keys:
 
 ```text
-https://gist.github.com/yazan414/327274b93c586ce8b18900c38982b3cd
+production.json
+testing.json
+backup.json
 ```
 
-Testing raw URL:
+Legacy Gist app-config URLs were used before the API/R2 migration. Do not reintroduce Gist URLs unless intentionally rolling back.
+
+## Release Checklist
+
+Read this before every Android release.
+
+1. Decide the release version:
+   - increase `versionCode`;
+   - increase `versionName`;
+   - keep `versionName` aligned with the app-config `app_update.latest_version`.
+2. Update the bundled fallback if needed:
+   - `app/src/main/assets/ambulance_app_config.json`;
+   - keep it reasonable for first launch with no cache/network.
+3. Confirm live R2 app-config values:
+   - production `access_gate.enabled`;
+   - production `access_gate.disabled_access_type`;
+   - `app_update.latest_version`;
+   - `app_update.min_supported_version`;
+   - `app_update.release_title`;
+   - `app_update.release_message`;
+   - `app_update.download_url`;
+   - `app_update.force_update`;
+   - Notices/announcement intended for release;
+   - document/helper versions and URLs.
+4. Confirm helper files:
+   - Android lightweight helpers are uploaded to R2 `app-data/`;
+   - iOS helper copies remain under `docs.niwashibase.com/helpers/` until iOS migrates;
+   - PDFs and website icons still point to the intended docs host locations.
+5. Upload app-config JSON files to R2:
+   - `production.json`;
+   - `backup.json`;
+   - `testing.json` if testing should match.
+6. Build the release APK.
+7. Install the release APK on a test device.
+8. Run the final smoke test:
+   - app launch;
+   - intended gate mode;
+   - MainActivity dashboard;
+   - one PDF/document path;
+   - CPR open/start/stop;
+   - Report Issue opens.
+9. Upload the APK to the GitHub release asset used by `download_url`.
+10. Verify the final `download_url` opens/downloads the new APK.
+11. From an older installed version, confirm the update prompt points to the correct release.
+
+## Lightweight Helper App-Data
+
+Android lightweight helper/index URLs should use API/R2 app-data endpoints:
 
 ```text
-https://gist.githubusercontent.com/yazan414/327274b93c586ce8b18900c38982b3cd/raw/ambulance_app_config_testing.json
+https://api.niwashibase.com/api/v1/ambulance/app-data/{resource}
 ```
+
+Examples:
+
+```text
+https://api.niwashibase.com/api/v1/ambulance/app-data/cpg-index
+https://api.niwashibase.com/api/v1/ambulance/app-data/flowcharts
+https://api.niwashibase.com/api/v1/ambulance/app-data/formulary
+https://api.niwashibase.com/api/v1/ambulance/app-data/websites
+https://api.niwashibase.com/api/v1/ambulance/app-data/as-call
+https://api.niwashibase.com/api/v1/ambulance/app-data/hos-sites
+https://api.niwashibase.com/api/v1/ambulance/app-data/analytics-config
+https://api.niwashibase.com/api/v1/ambulance/app-data/rsi-checklist
+https://api.niwashibase.com/api/v1/ambulance/app-data/ccp-pediatric-dosing
+https://api.niwashibase.com/api/v1/ambulance/app-data/ap-pediatric-dosing
+```
+
+PDF documents and website icon files remain on `docs.niwashibase.com` for now. Do not move large PDFs to R2 without estimating bandwidth/request cost first.
+
+Until the iOS webapp is migrated, helper updates must be published to both:
+
+- `docs.niwashibase.com/helpers/` for iOS;
+- R2 `app-data/` for Android.
 
 ## What The App Config Controls
 
@@ -57,6 +132,7 @@ It controls:
 - Websites helper URL/version
 - AS-Call helper URL/version
 - HOS Sites helper URL/version
+- Access Gate enabled state, base URL, fallback TTL, corporation-number length, and disabled-gate access type
 
 Version `2.0` users still use older update logic already compiled into that APK.
 
@@ -94,49 +170,119 @@ This field controls how often Android tries to fetch app config:
 "config_check_interval_hours": 3
 ```
 
-If GitHub/Gist is unreachable, Android uses:
+If the API/R2 app-config endpoint is unreachable, Android uses:
 
 1. in-memory config if already loaded
 2. saved cached config from the last successful fetch
-3. backup app-config Gist if the primary app-config URL fails
+3. backup app-config API endpoint if the active primary app-config URL fails
 4. bundled fallback config inside the APK
 
 The app does not replace saved config unless the remote JSON downloads and parses successfully.
 
-## Switching Between Production And Testing
+## Access Gate Section
 
-In `AppConfigRepository.kt`, switch `APP_CONFIG_URL`.
+The root config can include:
+
+```json
+"access_gate": {
+  "enabled": true,
+  "base_url": "https://api.niwashibase.com/api/v1/ambulance/access-gate",
+  "fallback_cache_ttl_sec": 86400,
+  "corp_number_digits": 6,
+  "disabled_access_type": "non_ambulance_staff"
+}
+```
+
+Field meanings:
+
+- `enabled`: when `true`, Android runs the Access Gate before MainActivity.
+- `base_url`: Worker endpoint root for Access Gate requests.
+- `fallback_cache_ttl_sec`: used only if a Worker response does not provide a TTL.
+- `corp_number_digits`: corporation-number length accepted by the Android ambulance staff registration form.
+- `disabled_access_type`: access mode used when `enabled` is `false`.
+
+Allowed `disabled_access_type` values:
+
+```text
+non_ambulance_staff
+ambulance_staff
+```
+
+Default behavior should stay `non_ambulance_staff` so disabling the gate does not accidentally grant protected document/internal-resource access. Use `ambulance_staff` only for intentional full-access maintenance/emergency mode.
+
+## Remote URL Validation
+
+Android validates remote URLs before using them.
+
+App-config controlled document/helper URLs must use HTTPS and must be under `niwashibase.com` or one of its subdomains, for example:
+
+```text
+https://docs.niwashibase.com/helpers/as_call.json
+https://docs.niwashibase.com/docs/cpg-81w9d1f.pdf
+https://api.niwashibase.com/api/v1/ambulance/app-data/as-call
+```
+
+Rejected URLs do not replace working cached/bundled data. Admin Panel diagnostics show the configured URL/host and validation reason. User issue reports hide URLs/hosts but keep the validation state and reason so troubleshooting is still possible.
+
+## Admin Panel And Issue Reports
+
+The Android app has two diagnostic views:
+
+- **Admin Panel:** full diagnostic view for trusted troubleshooting. It can show configured URLs, configured hosts, validation reasons, active source, cache state, versions, and recent errors.
+- **Report Issue:** user-facing report flow. It asks for problem type, app area, and a short description, then shares a sanitized JSON report. User reports hide URLs, hosts, and domain names, but keep source/validation states so the issue can still be diagnosed later from Admin Panel if needed.
+
+Resource source fields:
+
+```text
+using_source
+active_source
+config_source
+resolved_source
+```
+
+Common values:
+
+```text
+live
+cache
+fallback
+backup
+memory
+not_loaded
+```
+
+In debug builds, Admin Panel can switch app-config source for testing. Production builds use the production API app-config endpoint first, then the backup API app-config endpoint, cache, and bundled fallback as needed.
+
+## Switching Between Production, Testing, And Backup
+
+`AppConfigRepository.kt` contains three app-config URLs:
 
 Production:
 
 ```kotlin
-private const val APP_CONFIG_URL =
-    "https://gist.githubusercontent.com/yazan414/2ed2d30193b3dedffcf789981ad14c0e/raw/ambulance_app_config.json"
+private const val PRODUCTION_APP_CONFIG_URL =
+    "https://api.niwashibase.com/api/v1/ambulance/app-config/production"
 ```
 
 Testing:
 
 ```kotlin
-private const val APP_CONFIG_URL =
-    "https://gist.githubusercontent.com/yazan414/327274b93c586ce8b18900c38982b3cd/raw/ambulance_app_config_testing.json"
-```
-
-If the testing URL returns `404`, confirm the Gist file name is exactly:
-
-```text
-ambulance_app_config_testing.json
+private const val TESTING_APP_CONFIG_URL =
+    "https://api.niwashibase.com/api/v1/ambulance/app-config/testing"
 ```
 
 Backup:
 
 ```kotlin
 private const val BACKUP_APP_CONFIG_URL =
-    "https://gist.githubusercontent.com/yniwashi/53edb6646d3d3a53d6ddebbef3afee44/raw/ambulance_app_config_backup.json"
+    "https://api.niwashibase.com/api/v1/ambulance/app-config/backup"
 ```
 
-The backup Gist is used only when the active primary `APP_CONFIG_URL` cannot be downloaded or parsed.
+The backup app-config API endpoint is used only when the active primary app-config source cannot be downloaded or parsed.
 Keep it as a copy of the production app config unless deliberately testing fallback behavior.
-App Status reports the active source as `main`, `backup`, `cache`, or `bundled`; it does not expose the Gist URLs.
+Admin Panel reports the active source and may show app-config URLs for troubleshooting. User Report Issue JSON does not expose app-config URLs.
+
+Debug builds can switch between Build Default, Testing, Production, and Backup from Admin Panel and refresh app config immediately. Production builds use the build default production config path and only fall back to backup/cache/bundled when needed.
 
 ## Bundled Fallback
 
@@ -150,8 +296,8 @@ Fallback order:
 
 1. Use memory config if already loaded and still inside the check interval.
 2. Use saved cached config from the last successful remote fetch.
-3. Try fetching the primary remote Gist if the check interval has passed.
-4. If the primary remote fetch fails or the JSON cannot be parsed, try the backup app-config Gist.
+3. Try fetching the primary remote API app-config if the check interval has passed.
+4. If the primary remote fetch fails or the JSON cannot be parsed, try the backup API app-config.
 5. If both remote sources fail, keep using saved cached config.
 6. If there is no saved cache, use bundled fallback from APK assets.
 
@@ -160,7 +306,7 @@ Important:
 - Clearing app data removes saved cached config.
 - Uninstalling removes saved cached config.
 - Reinstalling brings back the bundled fallback because it is part of the APK.
-- The Gist should be the live source of truth.
+- The API/R2 app-config should be the live source of truth.
 - Keep bundled fallback reasonable before every APK release.
 
 ## App Update Section
@@ -203,14 +349,82 @@ versionName "2.2"
 ```
 
 2. Build and upload the APK.
-3. Update Gist `app_update.latest_version`.
+3. Update R2 app-config `app_update.latest_version`.
 4. Update `min_supported_version` if older versions should be blocked.
 5. Update `release_title`, `release_message`, and `download_url`.
 6. Set `force_update`.
-7. Save the Gist.
+7. Upload the updated app-config JSON to R2.
 8. Test on a fresh install and an existing install.
 
 Installed apps see the update after `config_check_interval_hours` passes, or sooner if they have no cached config.
+
+## GitHub Release APK Update
+
+APK distribution is hosted in:
+
+```text
+https://github.com/yniwashi/ambulance-app-dist
+```
+
+The app-config `app_update.download_url` must point to the APK download URL for the GitHub release asset. If the GitHub release asset changes, update `download_url` in R2 app config.
+
+Current known release pattern:
+
+```text
+Repository: yniwashi/ambulance-app-dist
+Release: Ambulance App v2.0
+Asset: release APK
+```
+
+Recommended GitHub release update steps:
+
+1. Build the signed release APK.
+2. Go to:
+
+```text
+https://github.com/yniwashi/ambulance-app-dist/releases
+```
+
+3. Open the current release, or draft a new release if the version is changing.
+4. Use a clear release tag/name, for example:
+
+```text
+v2.1
+Ambulance App v2.1
+```
+
+5. Upload the APK as a release asset.
+6. Copy the release asset download URL.
+7. Put that URL into:
+
+```json
+"app_update": {
+  "download_url": "PASTE_GITHUB_RELEASE_ASSET_URL_HERE"
+}
+```
+
+8. Upload the updated `production.json` and `backup.json` to R2.
+9. Test the URL in a browser before relying on it from the app.
+10. Test the app update button from an older installed APK.
+
+GitHub release asset URL forms that usually work:
+
+```text
+https://github.com/yniwashi/ambulance-app-dist/releases/download/v2.1/ambulance-v2.1.apk
+```
+
+or the latest-release form if you deliberately keep the asset name stable:
+
+```text
+https://github.com/yniwashi/ambulance-app-dist/releases/latest/download/ambulance.apk
+```
+
+Important:
+
+- If using `releases/latest/download/...`, make sure the intended release is marked as the latest release.
+- If using a versioned `/releases/download/vX.Y/...` URL, update app config every time the version/tag changes.
+- Keep the APK asset filename simple and stable if you want fewer app-config edits.
+- Do not point `download_url` to the GitHub HTML release page; it should point directly to the APK asset download.
 
 ## Notice Announcement
 
@@ -316,7 +530,7 @@ Example:
   "type": "CPG",
   "version": "2.5",
   "pdf_url": "https://docs.niwashibase.com/docs/cpg-81w9d1f.pdf",
-  "index_url": "https://docs.niwashibase.com/helpers/cpg_index.json"
+  "index_url": "https://api.niwashibase.com/api/v1/ambulance/app-data/cpg-index"
 }
 ```
 
@@ -341,19 +555,20 @@ https://docs.niwashibase.com/docs/pat-301h6j54r.pdf
 Current indexes:
 
 ```text
-https://docs.niwashibase.com/helpers/cpg_index.json
-https://docs.niwashibase.com/helpers/sop_index.json
-https://docs.niwashibase.com/helpers/cpm_index.json
-https://docs.niwashibase.com/helpers/pat_index.json
+https://api.niwashibase.com/api/v1/ambulance/app-data/cpg-index
+https://api.niwashibase.com/api/v1/ambulance/app-data/sop-index
+https://api.niwashibase.com/api/v1/ambulance/app-data/cpm-index
+https://api.niwashibase.com/api/v1/ambulance/app-data/pat-index
 ```
 
 To update a document:
 
-1. Update the PDF and/or index helper in `yniwashi/pdf-viewer`.
-2. Update `pdf_url` or `index_url` in app config if the filename changed.
-3. Increase the document `version`.
-4. Save the Gist.
-5. Test Android Guidelines/Search.
+1. Update the PDF on docs hosting if the PDF changed.
+2. Update the index helper in R2 `app-data/`. Until iOS migrates, also update the docs helper copy.
+3. Update `pdf_url` or `index_url` in app config if the filename changed.
+4. Increase the document `version`.
+5. Upload the updated app-config JSON to R2.
+6. Test Android Guidelines/Search.
 
 Android refreshes cached PDFs and indexes when the document `version` changes.
 
@@ -372,14 +587,14 @@ RSI is configured in the `documents` array:
   "id": "rsi_checklist",
   "type": "html",
   "version": "4.0",
-  "url": "https://docs.niwashibase.com/helpers/rsi_checklist_js_android.html",
+  "url": "https://api.niwashibase.com/api/v1/ambulance/app-data/rsi-checklist",
   "show_image": true
 }
 ```
 
 To update RSI:
 
-1. Update `helpers/rsi_checklist_js_android.html`.
+1. Update R2 `app-data/rsi_checklist_js_android.html`. Until iOS migrates where relevant, keep docs helper copies in sync.
 2. Increase RSI `version`.
 3. Set `show_image`.
 4. Save app config.
@@ -407,7 +622,7 @@ Current entries:
   "age_groups": ["months", "years"],
   "schema_version": "0.1",
   "version": "0.1",
-  "url": "https://docs.niwashibase.com/helpers/ccp_pediatric_dosing_helper.json",
+  "url": "https://api.niwashibase.com/api/v1/ambulance/app-data/ccp-pediatric-dosing",
   "fallback_asset": "ccp_pediatric_dosing_helper.json",
   "enabled": true
 }
@@ -420,7 +635,7 @@ Current entries:
   "age_groups": ["months", "years"],
   "schema_version": "0.1",
   "version": "0.1",
-  "url": "https://docs.niwashibase.com/helpers/ap_pediatric_dosing_helper.json",
+  "url": "https://api.niwashibase.com/api/v1/ambulance/app-data/ap-pediatric-dosing",
   "fallback_asset": "ap_pediatric_dosing_helper.json",
   "enabled": true
 }
@@ -456,15 +671,15 @@ Websites are configured under:
   "enabled": true,
   "schema_version": "0.1",
   "version": "0.1",
-  "url": "https://docs.niwashibase.com/helpers/websites.json",
+  "url": "https://api.niwashibase.com/api/v1/ambulance/app-data/websites",
   "fallback_asset": "websites.json"
 }
 ```
 
-The helper file lives at:
+The Android helper route is:
 
 ```text
-https://docs.niwashibase.com/helpers/websites.json
+https://api.niwashibase.com/api/v1/ambulance/app-data/websites
 ```
 
 The helper should include matching top-level metadata:
@@ -485,6 +700,8 @@ Android should validate:
 - helper `version` matches app config
 - `websites` contains at least one enabled usable item
 - each usable item has a non-blank `title` and `url`
+- each website destination URL is a valid HTTPS browser link
+- each remote icon URL is valid HTTPS under `niwashibase.com` or a subdomain
 
 Remote update rule:
 
@@ -503,34 +720,44 @@ AS-Call is configured under:
   "enabled": true,
   "schema_version": "0.1",
   "version": "0.1",
-  "url": "https://docs.niwashibase.com/helpers/as_call.json",
+  "url": "https://api.niwashibase.com/api/v1/ambulance/app-data/as-call",
   "fallback_asset": "as_call.json"
 }
 ```
 
-The helper file lives at:
+The Android helper route is:
 
 ```text
-https://docs.niwashibase.com/helpers/as_call.json
+https://api.niwashibase.com/api/v1/ambulance/app-data/as-call
 ```
 
-Android supports the current simple helper:
+Android uses the typed helper with `contacts` and lightly obfuscated `number_ref` values:
 
 ```json
 {
-  "addressbook": {
-    "Scheduling": 40328200
-  }
+  "helper_type": "as_call",
+  "schema_version": "0.1",
+  "version": "0.1",
+  "contacts": [
+    {
+      "id": "scheduling",
+      "enabled": true,
+      "name": "Scheduling",
+      "number_ref": "v1:Nzc5NTkwNzE"
+    }
+  ]
 }
 ```
 
-Android also supports a future typed helper with a `contacts` array and per-contact `enabled` flags.
+Android still accepts the older `addressbook` shape and plain `contacts[].number` during transition, but new helper edits should use `number_ref`.
+
+Decoded numbers are accepted only if they contain normal phone characters: digits, `+`, `#`, `*`, spaces, hyphen, and parentheses.
 
 Remote update rule:
 
 - Change `as_call.version` for contact additions/removals, name changes, number changes, enabled/disabled changes, or order changes.
 - Keep bundled fallback `assets/as_call.json` updated before release builds.
-- Store future `contacts[].number` values as strings.
+- Use `contacts[].number_ref` for new helper updates.
 
 ## HOS Sites Helper
 
@@ -541,15 +768,15 @@ HOS sites are configured under this app-config key:
   "enabled": true,
   "schema_version": "0.1",
   "version": "0.1",
-  "url": "https://docs.niwashibase.com/helpers/hos_sites.json",
+  "url": "https://api.niwashibase.com/api/v1/ambulance/app-data/hos-sites",
   "fallback_asset": "hos_sites.json"
 }
 ```
 
-The helper file should live at:
+The Android helper route is:
 
 ```text
-https://docs.niwashibase.com/helpers/hos_sites.json
+https://api.niwashibase.com/api/v1/ambulance/app-data/hos-sites
 ```
 
 Remote update rule:
@@ -577,7 +804,7 @@ Remote update rule:
 - For bell inbox Notices, each Notice needs a stable unique `id`.
 - For CCP/AP pediatric dosing, helper `schema_version` and `version` must match app config.
 - For Websites, helper `schema_version` and `version` must match app config.
-- For AS-Call, app-config `schema_version` and `version` control Android cache refresh. The current simple helper may omit top-level metadata.
+- For AS-Call, app-config `schema_version` and `version` control Android cache refresh. New AS-Call helpers should include matching top-level metadata and `contacts[].number_ref`.
 
 ## Quick Update Checklist
 
