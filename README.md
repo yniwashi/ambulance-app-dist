@@ -1,6 +1,5 @@
 # Ambulance App Config Guide
 
-
 This guide explains the Android app config, app update workflow, Notices, and how document/helper versions trigger remote refreshes.
 
 The static files referenced by app config live in:
@@ -33,6 +32,15 @@ R2 object keys:
 production.json
 testing.json
 backup.json
+```
+
+Local TEMP drafts:
+
+```text
+/mnt/e/code assist/apps - work/android projects/TEMP/App Config/production.json
+/mnt/e/code assist/apps - work/android projects/TEMP/App Config/testing.json
+/mnt/e/code assist/apps - work/android projects/TEMP/App Config/backup.json
+/mnt/e/code assist/apps - work/android projects/TEMP/App Config/ambulance_app_config.json
 ```
 
 Legacy Gist app-config URLs were used before the API/R2 migration. Do not reintroduce Gist URLs unless intentionally rolling back.
@@ -79,6 +87,58 @@ Read this before every Android release.
 9. Upload the APK to the GitHub release asset used by `download_url`.
 10. Verify the final `download_url` opens/downloads the new APK.
 11. From an older installed version, confirm the update prompt points to the correct release.
+12. If legacy versions still use the old Gist update JSON, update that Gist too and test the old-version update flow.
+
+## How-To: Change The Live App Config
+
+Use this for ordinary config-only changes such as update text, Notices, helper versions, access-gate mode, or config check interval.
+
+1. Edit the local draft JSON first.
+2. Validate that it is valid JSON.
+3. Upload or overwrite the matching R2 object:
+
+```text
+production.json
+testing.json
+backup.json
+```
+
+4. Open the API endpoint in a browser/Postman and confirm it returns the new value:
+
+```text
+https://api.niwashibase.com/api/v1/ambulance/app-config/production
+https://api.niwashibase.com/api/v1/ambulance/app-config/testing
+https://api.niwashibase.com/api/v1/ambulance/app-config/backup
+```
+
+5. Open Android Admin Panel -> App Config and confirm:
+   - resolved source is the expected source;
+   - configured URL is the API endpoint;
+   - updated values appear;
+   - URL validation is accepted.
+
+No APK rebuild is needed for a normal remote config change unless the bundled fallback or Android code also changed.
+
+## How-To: Update The Bundled Fallback Config
+
+Use this before building a release APK or when the APK must work correctly with no network and no saved cache.
+
+1. Copy the intended fallback config into:
+
+```text
+app/src/main/assets/ambulance_app_config.json
+```
+
+2. Keep fallback notices/announcements conservative. For release fallback, avoid temporary testing messages.
+3. Confirm fallback helper asset names match bundled files under:
+
+```text
+app/src/main/assets/
+```
+
+4. Build/install the APK and test once with no saved app data if fallback behavior matters.
+
+Important: changing the bundled fallback requires a new APK. It does not affect already installed users until they install that APK.
 
 ## Lightweight Helper App-Data
 
@@ -170,6 +230,20 @@ This field controls how often Android tries to fetch app config:
 "config_check_interval_hours": 3
 ```
 
+### How-To: Change Config Check Frequency
+
+1. Edit `config_check_interval_hours` in the R2 app-config JSON.
+2. Upload the changed `production.json`, `testing.json`, or `backup.json`.
+3. Existing installed apps will keep using their current cached config until their current check interval expires.
+4. After the app successfully downloads the new config, the new interval is saved and used for future checks.
+
+Example:
+
+- If the old interval is `24` hours and you change it to `12`, a device may still wait up to the old 24-hour window before it downloads the new config.
+- After it downloads the new config, the next check uses 12 hours.
+
+To force a faster check for testing, use debug Admin Panel source switching/refresh, clear app data, reinstall, or wait for the current cached interval.
+
 If the API/R2 app-config endpoint is unreachable, Android uses:
 
 1. in-memory config if already loaded
@@ -209,6 +283,31 @@ ambulance_staff
 ```
 
 Default behavior should stay `non_ambulance_staff` so disabling the gate does not accidentally grant protected document/internal-resource access. Use `ambulance_staff` only for intentional full-access maintenance/emergency mode.
+
+### How-To: Temporarily Disable The Gate
+
+1. Set:
+
+```json
+"enabled": false
+```
+
+2. Choose the disabled access mode:
+
+```json
+"disabled_access_type": "non_ambulance_staff"
+```
+
+or:
+
+```json
+"disabled_access_type": "ambulance_staff"
+```
+
+3. Upload the updated app config to R2.
+4. Test app launch.
+
+Recommended default is `non_ambulance_staff`, because it lets users open the app while still blocking protected document/internal-resource content. Use `ambulance_staff` only when you intentionally want full access while the gate is disabled.
 
 ## Remote URL Validation
 
@@ -366,14 +465,28 @@ APK distribution is hosted in:
 https://github.com/yniwashi/ambulance-app-dist
 ```
 
-The app-config `app_update.download_url` must point to the APK download URL for the GitHub release asset. If the GitHub release asset changes, update `download_url` in R2 app config.
+The app-config `app_update.download_url` currently points to the stable app update Worker URL:
+
+```text
+https://update.niwashibase.com/apk
+```
+
+That URL is served by the Cloudflare Worker named:
+
+```text
+ambulance-update
+```
+
+The Worker resolves the configured GitHub release tag and APK asset, then downloads/redirects the correct APK. Keep the app config URL stable as `https://update.niwashibase.com/apk`; update the Worker release fields each release.
 
 Current known release pattern:
 
 ```text
 Repository: yniwashi/ambulance-app-dist
-Release: Ambulance App v2.0
-Asset: release APK
+Release: Ambulance App v2.1
+Asset: Ambulance.v2.1.apk
+Update Worker: ambulance-update
+Public update URL: https://update.niwashibase.com/apk
 ```
 
 Recommended GitHub release update steps:
@@ -394,37 +507,124 @@ Ambulance App v2.1
 ```
 
 5. Upload the APK as a release asset.
-6. Copy the release asset download URL.
-7. Put that URL into:
+6. Use a versioned asset filename so it is clear to humans, for example:
+
+```text
+Ambulance.v2.1.apk
+```
+
+7. Update the Cloudflare Worker `ambulance-update` release fields:
+
+```javascript
+tag: "v2.1",
+assetName: "Ambulance.v2.1.apk",
+forceFilename: "Ambulance.v2.1.apk",
+```
+
+8. Keep R2 app config pointing to the stable Worker URL:
 
 ```json
 "app_update": {
-  "download_url": "PASTE_GITHUB_RELEASE_ASSET_URL_HERE"
+  "download_url": "https://update.niwashibase.com/apk"
 }
 ```
 
-8. Upload the updated `production.json` and `backup.json` to R2.
-9. Test the URL in a browser before relying on it from the app.
-10. Test the app update button from an older installed APK.
+9. Upload the updated `production.json`, `backup.json`, and `testing.json` to R2 as needed.
+10. Test the GitHub direct APK URL in a browser:
+
+```text
+https://github.com/yniwashi/ambulance-app-dist/releases/download/v2.1/Ambulance.v2.1.apk
+```
+
+11. Test the stable update URL in a browser:
+
+```text
+https://update.niwashibase.com/apk
+```
+
+It should download the new APK version.
+
+12. Test the app update button from an older installed APK.
+
+### How-To: Replace The APK Behind The Stable Update URL
+
+Use this when `https://update.niwashibase.com/apk` is still downloading the previous version.
+
+1. Confirm the GitHub release tag and APK asset name, for example:
+
+```text
+Tag: v2.2
+Asset: Ambulance.v2.2.apk
+```
+
+2. Edit the Cloudflare Worker named:
+
+```text
+ambulance-update
+```
+
+3. Update only these release fields:
+
+```javascript
+tag: "v2.2",
+assetName: "Ambulance.v2.2.apk",
+forceFilename: "Ambulance.v2.2.apk",
+```
+
+4. Deploy the Worker.
+5. Open:
+
+```text
+https://update.niwashibase.com/apk
+```
+
+6. Confirm the downloaded filename/version is the new APK.
+
+The app config should normally keep:
+
+```json
+"download_url": "https://update.niwashibase.com/apk"
+```
+
+Do not change app config to a GitHub HTML release page.
 
 GitHub release asset URL forms that usually work:
 
 ```text
-https://github.com/yniwashi/ambulance-app-dist/releases/download/v2.1/ambulance-v2.1.apk
-```
-
-or the latest-release form if you deliberately keep the asset name stable:
-
-```text
-https://github.com/yniwashi/ambulance-app-dist/releases/latest/download/ambulance.apk
+https://github.com/yniwashi/ambulance-app-dist/releases/download/v2.1/Ambulance.v2.1.apk
 ```
 
 Important:
 
-- If using `releases/latest/download/...`, make sure the intended release is marked as the latest release.
-- If using a versioned `/releases/download/vX.Y/...` URL, update app config every time the version/tag changes.
-- Keep the APK asset filename simple and stable if you want fewer app-config edits.
+- If using versioned APK asset names, update the `ambulance-update` Worker `tag`, `assetName`, and `forceFilename` every release.
+- Make sure the GitHub release is published and not marked as pre-release unless intentionally testing.
 - Do not point `download_url` to the GitHub HTML release page; it should point directly to the APK asset download.
+- For current app config, `download_url` should stay `https://update.niwashibase.com/apk`, not the GitHub direct asset URL.
+
+## Legacy Gist Update JSON
+
+Older installed versions may still read the legacy Gist update JSON instead of the newer API/R2 app config. Until all active users are on the newer app-config flow, update the Gist every release.
+
+For v2.1, the legacy Gist JSON was:
+
+```json
+[
+  {
+    "downloadLink": "https://update.niwashibase.com/apk",
+    "version": 2.1,
+    "title": "Ambulance App v2.1\n\nTo update follow these steps:\n\n1-Press Download to get the new version.\n\n2-Open My Files to install the new version (don’t use Google Chrome to install).",
+    "body": "This version adds Ambulance Staff and Other User access, refreshed dashboard UI, improved CPR tools, updated pediatric tools, Shift Schedule, qSOFA, and safer reporting."
+  }
+]
+```
+
+After updating the Gist:
+
+1. Open an older installed APK.
+2. Confirm the update prompt shows the new version/title.
+3. Tap Download.
+4. Confirm it downloads from `https://update.niwashibase.com/apk`.
+5. Install and confirm the app shows the new version.
 
 ## Notice Announcement
 
@@ -597,7 +797,7 @@ To update RSI:
 1. Update R2 `app-data/rsi_checklist_js_android.html`. Until iOS migrates where relevant, keep docs helper copies in sync.
 2. Increase RSI `version`.
 3. Set `show_image`.
-4. Save app config.
+4. Upload app config to R2.
 5. Test Android RSI.
 
 Android processes the RSI HTML by replacing Android placeholders with bundled local image/audio paths before displaying it.
@@ -811,26 +1011,34 @@ Remote update rule:
 For app release:
 
 1. Build APK.
-2. Upload APK.
-3. Update `app_update`.
-4. Test update dialog.
+2. Upload APK to GitHub release.
+3. Update the `ambulance-update` Worker release fields if the APK tag/asset changed.
+4. Update R2 app config `app_update`.
+5. Update legacy Gist update JSON if old installed versions still need it.
+6. Test `https://update.niwashibase.com/apk`.
+7. Test update dialog from an older installed APK.
 
 For document update:
 
 1. Update PDF/index in `pdf-viewer`.
-2. Increase document `version` in app config.
-3. Test Guidelines/Search.
+2. Upload Android index/helper copy to R2 `app-data/`.
+3. Increase document `version` in app config.
+4. Upload app config to R2.
+5. Test Guidelines/Search.
 
 For helper update:
 
 1. Update helper in `pdf-viewer/helpers`.
-2. Increase matching helper/document version in app config.
-3. Update Android bundled fallback if applicable.
-4. Test the app feature.
+2. Upload Android helper copy to R2 `app-data/`.
+3. Increase matching helper/document version in app config.
+4. Upload app config to R2.
+5. Update Android bundled fallback if applicable before a release build.
+6. Test the app feature.
 
 For Notice:
 
 1. Add to `notices`.
 2. Add to `announcement` if popup is needed.
 3. Use a new `id` if users should see it again.
-4. Optionally send Firebase push as a reminder only.
+4. Upload app config to R2.
+5. Optionally send Firebase push as a reminder only.
